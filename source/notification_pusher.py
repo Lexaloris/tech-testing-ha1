@@ -68,7 +68,7 @@ def notification_worker(task, task_queue, *args, **kwargs):
 
 
 def done_with_processed_tasks(task_queue):
-    """
+    """f
     Удаляет завешенные задачи.
 
     :param task_queue: очередь, хранящая кортежи (объект задачи, имя действия)
@@ -180,7 +180,7 @@ def main_loop(config):
     else:
         logger.info('Stop application loop.')
 
-
+""" repeate """
 def parse_cmd_args(args):
     """
     Разбирает аргументы командной строки.
@@ -216,7 +216,7 @@ def parse_cmd_args(args):
 
     return parser.parse_args(args=args)
 
-
+""" repeate """
 def daemonize():
     """
     Демонизирует текущий процесс.
@@ -246,7 +246,7 @@ class Config(object):
     """
     pass
 
-
+""" repeate """
 def load_config_from_pyfile(filepath):
     """
     Создает Config объект из py файла и загружает в него настройки.
