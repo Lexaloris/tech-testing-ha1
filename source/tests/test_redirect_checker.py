@@ -2,14 +2,6 @@ import unittest
 import mock
 from source.lib.utils import Config
 from source import redirect_checker
-from lib.worker import worker
-from multiprocessing import active_children
-import argparse
-from logging.config import dictConfig
-# from source.lib import utils
-# from lib.utils import (check_network_status, create_pidfile, daemonize,
-#                        load_config_from_pyfile, parse_cmd_args, spawn_workers)
-
 
 class TestActiveChildren:
     child = mock.Mock()
@@ -72,7 +64,6 @@ class RedirectCheckerTestCase(unittest.TestCase):
             redirect_checker.run_checker = False
 
         active_children = TestActiveChildren(2)
-        required_workers_count = config.WORKER_POOL_SIZE - len(active_children())
         mock_sleep = mock.Mock(side_effect=break_run)
         with mock.patch('source.redirect_checker.check_network_status', mock_check_network_status):
             with mock.patch('os.getpid', mock.Mock(return_value=pid)):
@@ -120,7 +111,6 @@ class RedirectCheckerTestCase(unittest.TestCase):
         mock_main_loop = mock.Mock()
         mock_daemonize = mock.Mock()
         mock_create_pidfile = mock.Mock()
-        mock_argv.daemon = mock.Mock()
         with mock.patch('source.redirect_checker.daemonize', mock_daemonize):
             with mock.patch('source.redirect_checker.parse_cmd_args', mock_parse_cmd_args):
                 with mock.patch('source.redirect_checker.dictConfig', mock_dictConfig):
