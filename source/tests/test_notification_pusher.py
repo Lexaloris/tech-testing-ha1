@@ -1,9 +1,9 @@
 import unittest
 import mock
 import requests
-from notification_pusher import create_pidfile
-from notification_pusher import install_signal_handlers
-from notification_pusher import notification_worker
+from source.notification_pusher import create_pidfile
+from source.notification_pusher import install_signal_handlers
+from source.notification_pusher import notification_worker
 from source import notification_pusher
 from source.lib.utils import Config
 from gevent import queue as gevent_queue
@@ -27,7 +27,7 @@ class NotificationPusherTestCase(unittest.TestCase):
     def test_create_pidfile_example(self):
         pid = 42
         m_open = mock.mock_open()
-        with mock.patch('notification_pusher.open', m_open, create=True):
+        with mock.patch('source.notification_pusher.open', m_open, create=True):
             with mock.patch('os.getpid', mock.Mock(return_value=pid)):
                 create_pidfile('/file/path')
 
@@ -69,7 +69,8 @@ class NotificationPusherTestCase(unittest.TestCase):
         })
         response = requests.RequestException
         with mock.patch.object(requests, 'post', mock.Mock(side_effect=response)):
-            notification_worker(task, task_queue)
+            with mock.patch('source.notification_pusher.logger', mock.Mock()):
+                notification_worker(task, task_queue)
         task_queue.put.assert_called_once_with((task, 'bury'))
 
     def test_done_with_processed_tasks_all_well(self):
@@ -314,7 +315,9 @@ class NotificationPusherTestCase(unittest.TestCase):
                                         with mock.patch('source.notification_pusher.patch_all', mock.Mock()):
                                             with mock.patch('source.notification_pusher.sleep',
                                                             mock_sleep):
-                                                exit_code = notification_pusher.main(mock_argv)
+                                                with mock.patch('source.notification_pusher.logger',
+                                                            mock.Mock()):
+                                                    exit_code = notification_pusher.main(mock_argv)
         mock_daemonize.assert_called_once_with()
         mock_create_pidfile.assert_called()
         mock_dictConfig.assert_called_once_with(config.LOGGING)
