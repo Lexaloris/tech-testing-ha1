@@ -10,23 +10,23 @@ class LibInitTestCase(unittest.TestCase):
     #to_unicode(val, errors='strict')
         #positive_tests
     def test_to_unicode_isinstance(self):
-        val = 'val'
-        self.assertEquals(val, lib.to_unicode(val))
+        val = u'val'
+        self.assertTrue(isinstance(lib.to_unicode(val), unicode))
 
     def test_to_unicode_else(self):
         val = 'значение'
         errors = 'ignore'
-        self.assertEquals(val.decode('utf8', errors), lib.to_unicode(val, errors))
+        self.assertTrue(isinstance(lib.to_unicode(val, errors), unicode))
 
     #to_str(val, errors='strict')
         #positive_tests
     def test_to_str_isinstance(self):
-        val = 'val'
-        self.assertEquals(val.encode('utf8'), lib.to_str(val))
+        val = u'val'
+        self.assertTrue(isinstance(lib.to_str(val), str))
 
     def test_to_str_else(self):
         val = 'значение'
-        self.assertEquals(val, lib.to_str(val))
+        self.assertTrue(isinstance(lib.to_str(val), str))
 
     #get_counters(content)
         #positive_tests
@@ -163,7 +163,6 @@ class LibInitTestCase(unittest.TestCase):
         timeout = 30
         content = 'content'
         redirect_url = 'http://redirect-url.ru'
-        useragent = 'useragent'
         buff = mock.MagicMock()
         buff.getvalue = mock.Mock(return_value=content)
         curl = mock.MagicMock()
@@ -173,9 +172,38 @@ class LibInitTestCase(unittest.TestCase):
         with mock.patch('source.lib.StringIO', mock.Mock(return_value=buff)):
             with mock.patch('pycurl.Curl', mock.Mock(return_value=curl)):
                 self.assertEquals((content, redirect_url), lib.make_pycurl_request(url, timeout))
+
+    def test_make_pycurl_request_redirect_url_useragent(self):
+        url = 'http://url.ru'
+        timeout = 30
+        content = 'content'
+        redirect_url = 'http://redirect-url.ru'
+        useragent = 'useragent'
+        buff = mock.MagicMock()
+        buff.getvalue = mock.Mock(return_value=content)
+        curl = mock.MagicMock()
+        curl.setopt = mock.Mock()
+        curl.perform = mock.Mock()
+        curl.getinfo = mock.Mock(return_value=redirect_url)
+        with mock.patch('source.lib.StringIO', mock.Mock(return_value=buff)):
+            with mock.patch('pycurl.Curl', mock.Mock(return_value=curl)):
                 self.assertEquals((content, redirect_url), lib.make_pycurl_request(url, timeout, useragent))
 
     def test_make_pycurl_request_none(self):
+        url = 'http://url.ru'
+        timeout = 30
+        content = 'content'
+        buff = mock.MagicMock()
+        buff.getvalue = mock.Mock(return_value=content)
+        curl = mock.MagicMock()
+        curl.setopt = mock.Mock()
+        curl.perform = mock.Mock()
+        curl.getinfo = mock.Mock(return_value=None)
+        with mock.patch('source.lib.StringIO', mock.Mock(return_value=buff)):
+            with mock.patch('pycurl.Curl', mock.Mock(return_value=curl)):
+                self.assertEquals((content, None), lib.make_pycurl_request(url, timeout))
+
+    def test_make_pycurl_request_none_useragent(self):
         url = 'http://url.ru'
         timeout = 30
         content = 'content'
@@ -188,7 +216,6 @@ class LibInitTestCase(unittest.TestCase):
         curl.getinfo = mock.Mock(return_value=None)
         with mock.patch('source.lib.StringIO', mock.Mock(return_value=buff)):
             with mock.patch('pycurl.Curl', mock.Mock(return_value=curl)):
-                self.assertEquals((content, None), lib.make_pycurl_request(url, timeout))
                 self.assertEquals((content, None), lib.make_pycurl_request(url, timeout, useragent))
 
     #get_url(url, timeout, user_agent=None)
