@@ -3,11 +3,6 @@ import mock
 from source.lib import utils
 
 
-import unittest
-import mock
-from source.lib import utils
-
-
 class LibUtilsTestCase(unittest.TestCase):
     # daemonize()
     def test_daemonize_parent(self):
