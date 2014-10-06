@@ -3,52 +3,63 @@ import mock
 from source.lib import utils
 
 
+import unittest
+import mock
+from source.lib import utils
+
+
 class LibUtilsTestCase(unittest.TestCase):
     # daemonize()
-        #positive_tests
     def test_daemonize_parent(self):
-        pid = 42
-        with mock.patch('os.fork', mock.Mock(return_value=pid)) as os_fork:
-            with mock.patch('os._exit', mock.Mock()) as os_exit:
+        pid = 12
+        mock_os_fork = mock.Mock(return_value=pid)
+        mock_os_exit = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
                 utils.daemonize()
+        mock_os_exit.assert_called_once_with(0)
+        mock_os_fork.assert_called_once_with()
 
-        os_fork.assert_called_once_with()
-        os_exit.assert_called_once_with(0)
+    def test_daemonize_oserror(self):
+        mock_os_fork = mock.Mock(side_effect=OSError)
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            self.assertRaises(Exception, utils.daemonize)
+
+    def test_daemonize_child_parent(self):
+        pid = 0
+        mock_os_fork = mock.Mock(side_effect=[pid, 12])
+        mock_os_exit = mock.Mock()
+        mock_os_setsid = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
+                with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
+                    utils.daemonize()
+        mock_os_exit.assert_called_once_with(0)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     def test_daemonize_child_child(self):
         pid = 0
-        with mock.patch('os.fork', mock.Mock(return_value=pid)) as os_fork:
-            with mock.patch('os.setsid', mock.Mock()) as os_setsid:
-                with mock.patch('os._exit', mock.Mock()) as os_exit:
+        mock_os_fork = mock.Mock(return_value=pid)
+        mock_os_exit = mock.Mock()
+        mock_os_setsid = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
+                with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
                     utils.daemonize()
-
-        os_setsid.assert_called_once_with()
-        assert os_fork.called
-        assert not os_exit.called
-
-    def test_daemonize_child_parent(self):
-        child_pid = 0
-        parent_pid = 42
-        with mock.patch('os.fork', mock.Mock(side_effect=[child_pid, parent_pid])):
-            with mock.patch('os.setsid', mock.Mock()):
-                with mock.patch('os._exit', mock.Mock()) as os_exit:
-                    utils.daemonize()
-
-        os_exit.assert_called_once_with(0)
-
-        #negative_tests
-    def test_daemonize_oserror(self):
-        exc = OSError("err")
-        with mock.patch('os.fork', mock.Mock(side_effect=exc)):
-            self.assertRaises(Exception, utils.daemonize)
+        self.assertFalse(mock_os_exit.called)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     def test_daemonize_child_oserror(self):
         pid = 0
-        exc = OSError("err")
-        with mock.patch('os.fork', mock.Mock(side_effect=[pid, exc])):
-            with mock.patch('os._exit', mock.Mock()):
-                with mock.patch('os.setsid', mock.Mock()):
-                    self.assertRaises(Exception, utils.daemonize)
+        mock_os_setsid = mock.Mock()
+        mock_os_fork = mock.Mock(side_effect=[pid, OSError])
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
+                self.assertRaises(Exception, utils.daemonize)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     #create_pidfile(pidfile_path)
         #positive_tests
@@ -77,28 +88,11 @@ class LibUtilsTestCase(unittest.TestCase):
         self.assertFalse(hasattr(result, 'Test_Key_5'))
 
     #parse_cmd_args(args, app_description='')
-        #positive_tests
-    def test_parse_cmd_args_abbr(self):
-        import argparse
-
-        app_name = 'app_name'
-        app_description = 'app_description'
-        config_path = '/file/path'
-        pid = 42
-        args = '%s -c %s -d -P %d' % (app_name, config_path, pid)
-        return_value = utils.parse_cmd_args(args.split(' ')[1:], app_description)
-        self.assertEqual(argparse.Namespace(config=config_path, daemon=True, pidfile=str(pid)), return_value)
-
-    def test_parse_cmd_args_full(self):
-        import argparse
-
-        app_name = 'app_name'
-        app_description = 'app_description'
-        config_path = '/file/path'
-        pid = 0
-        args = '%s --daemon --pid %d --config %s' % (app_name, pid, config_path)
-        return_value = utils.parse_cmd_args(args.split(' ')[1:], app_description)
-        self.assertEqual(argparse.Namespace(config=config_path, daemon=True, pidfile=str(pid)), return_value)
+    def test_parse_cmd_args(self):
+        mock_args = 'args'
+        with mock.patch('source.lib.utils.argparse.ArgumentParser.parse_args', mock.Mock()) as mock_parse:
+            utils.parse_cmd_args(mock_args)
+        mock_parse.assert_called_once()
 
     #get_tube(host, port, space, name)
         #positive_tests
@@ -138,14 +132,22 @@ class LibUtilsTestCase(unittest.TestCase):
         with mock.patch('urllib2.urlopen', mock.Mock()):
             self.assertTrue(utils.check_network_status(url, timeout))
 
-    def test_check_network_status_false(self):
-        import urllib2
-        import socket
+    def test_check_network_status_urllib2_error(self):
         url = 'url.ru'
         timeout = 30
-        with mock.patch('urllib2.urlopen', mock.Mock(side_effect=[urllib2.URLError('because'),
-                                                                  socket.error(),
-                                                                  ValueError])):
+        import urllib2
+        with mock.patch('urllib2.urlopen', mock.Mock(side_effect=urllib2.URLError('urlerror'))):
             self.assertFalse(utils.check_network_status(url, timeout))
+
+    def test_check_network_status_socket_error(self):
+        url = 'url.ru'
+        timeout = 30
+        import socket
+        with mock.patch('urllib2.urlopen', mock.Mock(side_effect=socket.error())):
             self.assertFalse(utils.check_network_status(url, timeout))
+
+    def test_check_network_status_value_error(self):
+        url = 'url.ru'
+        timeout = 30
+        with mock.patch('urllib2.urlopen', mock.Mock(side_effect=ValueError)):
             self.assertFalse(utils.check_network_status(url, timeout))

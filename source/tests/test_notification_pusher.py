@@ -174,66 +174,62 @@ class NotificationPusherTestCase(unittest.TestCase):
         mock_sleep.assert_called_once_with(config.SLEEP)
         notification_pusher.run_application = initial_run_application
 
-    def test_parse_cmd_args_abbr(self):
-        import argparse
-        app_name = 'app_name'
-        config_path = '/file/path'
-        pid = 42
-        args = '%s -c %s -d -P %d' % (app_name, config_path, pid)
-        return_value = notification_pusher.parse_cmd_args(args.split(' ')[1:])
-        self.assertEqual(argparse.Namespace(config=config_path, daemon=True, pidfile=str(pid)), return_value)
-
-    def test_parse_cmd_args_full(self):
-        import argparse
-        app_name = 'app_name'
-        config_path = '/file/path'
-        pid = 0
-        args = '%s --daemon --pid %d --config %s' % (app_name, pid, config_path)
-        return_value = notification_pusher.parse_cmd_args(args.split(' ')[1:])
-        self.assertEqual(argparse.Namespace(config=config_path, daemon=True, pidfile=str(pid)), return_value)
+    def test_parse_cmd_args(self):
+        mock_args = '12'
+        with mock.patch('source.lib.utils.argparse.ArgumentParser.parse_args', mock.Mock()) as mock_parse:
+            notification_pusher.parse_cmd_args(mock_args)
+        mock_parse.assert_called_once()
 
     def test_daemonize_parent(self):
-        pid = 42
-        with mock.patch('os.fork', mock.Mock(return_value=pid)) as os_fork:
-            with mock.patch('os._exit', mock.Mock()) as os_exit:
+        pid = 12
+        mock_os_fork = mock.Mock(return_value=pid)
+        mock_os_exit = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
                 notification_pusher.daemonize()
+        mock_os_exit.assert_called_once_with(0)
+        mock_os_fork.assert_called_once_with()
 
-        os_fork.assert_called_once_with()
-        os_exit.assert_called_once_with(0)
+    def test_daemonize_oserror(self):
+        mock_os_fork = mock.Mock(side_effect=OSError)
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            self.assertRaises(Exception, notification_pusher.daemonize)
+
+    def test_daemonize_child_parent(self):
+        pid = 0
+        mock_os_fork = mock.Mock(side_effect=[pid, 12])
+        mock_os_exit = mock.Mock()
+        mock_os_setsid = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
+                with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
+                    notification_pusher.daemonize()
+        mock_os_exit.assert_called_once_with(0)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     def test_daemonize_child_child(self):
         pid = 0
-        with mock.patch('os.fork', mock.Mock(return_value=pid)) as os_fork:
-            with mock.patch('os.setsid', mock.Mock()) as os_setsid:
-                with mock.patch('os._exit', mock.Mock()) as os_exit:
+        mock_os_fork = mock.Mock(return_value=pid)
+        mock_os_exit = mock.Mock()
+        mock_os_setsid = mock.Mock()
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os._exit', mock_os_exit):
+                with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
                     notification_pusher.daemonize()
-
-        os_setsid.assert_called_once_with()
-        assert os_fork.called
-        assert not os_exit.called
-
-    def test_daemonize_child_parent(self):
-        child_pid = 0
-        parent_pid = 42
-        with mock.patch('os.fork', mock.Mock(side_effect=[child_pid, parent_pid])):
-            with mock.patch('os.setsid', mock.Mock()):
-                with mock.patch('os._exit', mock.Mock()) as os_exit:
-                    notification_pusher.daemonize()
-
-        os_exit.assert_called_once_with(0)
-
-    def test_daemonize_oserror(self):
-        exc = OSError("err")
-        with mock.patch('os.fork', mock.Mock(side_effect=exc)):
-            self.assertRaises(Exception, notification_pusher.daemonize)
+        self.assertFalse(mock_os_exit.called)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     def test_daemonize_child_oserror(self):
         pid = 0
-        exc = OSError("err")
-        with mock.patch('os.fork', mock.Mock(side_effect=[pid, exc])):
-            with mock.patch('os._exit', mock.Mock()):
-                with mock.patch('os.setsid', mock.Mock()):
-                    self.assertRaises(Exception, notification_pusher.daemonize)
+        mock_os_setsid = mock.Mock()
+        mock_os_fork = mock.Mock(side_effect=[pid, OSError])
+        with mock.patch('source.notification_pusher.os.fork', mock_os_fork):
+            with mock.patch('source.notification_pusher.os.setsid', mock_os_setsid):
+                self.assertRaises(Exception, notification_pusher.daemonize)
+        mock_os_setsid.assert_called_once_with()
+        self.assertTrue(mock_os_fork.call_count, 2)
 
     def test_load_config_from_pyfile(self):
         result = notification_pusher.load_config_from_pyfile('source/tests/test_config.py')

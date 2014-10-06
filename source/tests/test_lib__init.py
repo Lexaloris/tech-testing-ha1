@@ -31,13 +31,9 @@ class LibInitTestCase(unittest.TestCase):
     #get_counters(content)
         #positive_tests
     def test_get_counters_match(self):
-        import rstr
-        content = ''
+        content = 'http://google-analytics.com/ga.js'
 
-        for counter_name, regexp in lib.COUNTER_TYPES:
-            content += rstr.xeger(regexp)
-
-        self.assertEquals(len(lib.COUNTER_TYPES), len(lib.get_counters(content)))
+        self.assertEquals(1, len(lib.get_counters(content)))
 
     def test_get_counters_else(self):
         content = ''
@@ -47,99 +43,61 @@ class LibInitTestCase(unittest.TestCase):
     #check_for_meta(content, url)
         #positive_tests
     def test_check_for_meta_not_result(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head></head>
-                <body></body>
-            </html>
-        """
+        content = "not meta"
         url = 'url'
 
-        self.assertEquals(None, lib.check_for_meta(content, url))
+        with mock.patch('source.lib.BeautifulSoup.find', mock.Mock(return_value=None)):
+            self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta_not_content(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta charset="UTF-8" />
-                </head>
-                <body></body>
-            </html>
-        """
+        content = "meta: not content"
         url = 'url'
+        result = mock.MagicMock()
 
-        self.assertEquals(None, lib.check_for_meta(content, url))
+        with mock.patch('source.lib.BeautifulSoup.find', mock.Mock(return_value=result)):
+            self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta_not_http_equiv(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta name="refresh" content="content" />
-                </head>
-                <body></body>
-            </html>
-        """
+        content = "meta: name = refresh content=content"
         url = 'url'
+        result = mock.MagicMock()
+        result.attrs = {
+            'content': 'content',
+            'name': 'refresh',
+        }
 
-        self.assertEquals(None, lib.check_for_meta(content, url))
+        with mock.patch('source.lib.BeautifulSoup.find', mock.Mock(return_value=result)):
+            self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta_not_refresh(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-                </head>
-                <body></body>
-            </html>
-        """
+        content = "meta: http-equiv=Content-Type content=content"
         url = 'url'
+        result = mock.MagicMock()
+        result.attrs = {
+            'content': 'content',
+            'http-equiv': 'Content-Type',
+        }
 
-        self.assertEquals(None, lib.check_for_meta(content, url))
+        with mock.patch('source.lib.BeautifulSoup.find', mock.Mock(return_value=result)):
+            self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta_len_splitted_not_equals_2(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta http-equiv="ReFresh" content="5" />
-                </head>
-                <body></body>
-            </html>
-        """
+        content = '<meta http-equiv="ReFresh" content="content">'
         url = 'url'
 
         self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta_not_search_url(self):
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta http-equiv="refresh" content="5; url=">
-                </head>
-                <body></body>
-            </html>
-        """
+        content = '<meta http-equiv="refresh" content="content; url=">'
         url = 'url'
 
         self.assertEquals(None, lib.check_for_meta(content, url))
 
     def test_check_for_meta(self):
+        content = '<meta http-equiv="refresh" content="content; url=redirect_url">'
         url = 'http://url.ru'
         redirect_url = 'http://redirect-url.ru'
-        content = """
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <meta http-equiv="refresh" content="5; url=""" + redirect_url + """">
-                </head>
-                <body></body>
-            </html>
-        """
+
         with mock.patch('source.lib.to_unicode', mock.Mock(return_value=redirect_url)):
             self.assertEquals(lib.urljoin(url, redirect_url), lib.check_for_meta(content, url))
 
@@ -226,11 +184,7 @@ class LibInitTestCase(unittest.TestCase):
         content = 'content'
         new_redirect_url = 'http://odnoklassniki.ru/redirect-url/st.redirect'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, new_redirect_url])):
-            redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(None, redirect_url)
-        self.assertEquals(None, redirect_type)
-        self.assertEquals(content, return_content)
+            self.assertEquals((None, None, content), lib.get_url(url, timeout))
 
     def test_get_url_redirect_http(self):
         from source.lib import REDIRECT_HTTP
@@ -239,11 +193,7 @@ class LibInitTestCase(unittest.TestCase):
         content = 'content'
         new_redirect_url = 'http://redirect-url.ru'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, new_redirect_url])):
-            redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(new_redirect_url, redirect_url)
-        self.assertEquals(REDIRECT_HTTP, redirect_type)
-        self.assertEquals(content, return_content)
+            self.assertEquals((new_redirect_url, REDIRECT_HTTP, content), lib.get_url(url, timeout))
 
     def test_get_url_redirect_http_market(self):
         from source.lib import REDIRECT_HTTP
@@ -253,11 +203,7 @@ class LibInitTestCase(unittest.TestCase):
         new_redirect_url = 'market://redirect-url.ru'
         new_redirect_url_without_market = 'http://play.google.com/store/apps/redirect-url.ru'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, new_redirect_url])):
-            redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(new_redirect_url_without_market, redirect_url)
-        self.assertEquals(REDIRECT_HTTP, redirect_type)
-        self.assertEquals(content, return_content)
+            self.assertEquals((new_redirect_url_without_market, REDIRECT_HTTP, content), lib.get_url(url, timeout))
 
     def test_get_url_redirect_meta_none(self):
         url = 'http://url.ru'
@@ -265,11 +211,7 @@ class LibInitTestCase(unittest.TestCase):
         content = 'content'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, None])):
             with mock.patch('source.lib.check_for_meta', mock.Mock(return_value=None)):
-                redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(None, redirect_url)
-        self.assertEquals(None, redirect_type)
-        self.assertEquals(content, return_content)
+                self.assertEquals((None, None, content), lib.get_url(url, timeout))
 
     def test_get_url_redirect_meta(self):
         from source.lib import REDIRECT_META
@@ -279,11 +221,7 @@ class LibInitTestCase(unittest.TestCase):
         new_redirect_url = 'http://redirect-url.ru'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, None])):
             with mock.patch('source.lib.check_for_meta', mock.Mock(return_value=new_redirect_url)):
-                redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(new_redirect_url, redirect_url)
-        self.assertEquals(REDIRECT_META, redirect_type)
-        self.assertEquals(content, return_content)
+                self.assertEquals((new_redirect_url, REDIRECT_META, content), lib.get_url(url, timeout))
 
     def test_get_url_redirect_meta_market(self):
         from source.lib import REDIRECT_META
@@ -294,22 +232,14 @@ class LibInitTestCase(unittest.TestCase):
         new_redirect_url_without_market = 'http://play.google.com/store/apps/redirect-url.ru'
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(return_value=[content, None])):
             with mock.patch('source.lib.check_for_meta', mock.Mock(return_value=new_redirect_url)):
-                redirect_url, redirect_type, return_content = lib.get_url(url, timeout)
-
-        self.assertEquals(new_redirect_url_without_market, redirect_url)
-        self.assertEquals(REDIRECT_META, redirect_type)
-        self.assertEquals(content, return_content)
+                self.assertEquals((new_redirect_url_without_market, REDIRECT_META, content), lib.get_url(url, timeout))
 
         #negative_tests
     def test_get_url_value_error(self):
         url = 'http://url.ru'
         timeout = 30
         with mock.patch('source.lib.make_pycurl_request', mock.Mock(side_effect=ValueError)):
-            redirect_url, redirect_type, content = lib.get_url(url, timeout)
-
-        self.assertEquals(url, redirect_url)
-        self.assertEquals('ERROR', redirect_type)
-        self.assertEquals(None, content)
+            self.assertEquals((url, 'ERROR', None), lib.get_url(url, timeout))
 
     #get_redirect_history(url, timeout, max_redirects=30, user_agent=None)
         #positive_tests
@@ -421,7 +351,11 @@ class LibInitTestCase(unittest.TestCase):
         self.assertEquals(url, lib.prepare_url(url))
 
     def test_prepare_url(self):
-        url = 'https://netloc.com/path with%20space.php;qs=qs1 qs2'
-        return_url = 'https://netloc.com/path%20with%20space.php;qs=qs1+qs2'
-
-        self.assertEquals(return_url, lib.prepare_url(url))
+        url = 'http://url.ru'
+        with mock.patch('source.lib.urlparse', mock.Mock(return_value=[mock.MagicMock()] * 6)) as urlparse:
+            with mock.patch('source.lib.quote', mock.Mock()) as quote:
+                with mock.patch('source.lib.quote_plus', mock.Mock()) as quote_plus:
+                    lib.prepare_url(url)
+        urlparse.assert_called_once()
+        quote.assert_called_once()
+        quote_plus.assert_called_once()
